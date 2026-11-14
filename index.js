@@ -5,7 +5,10 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const { initializeApp, cert } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
 
-const decoded = Buffer.from(process.env.FIREBASE_SERVICE_KEY, "base64").toString("utf8");
+const decoded = Buffer.from(
+  process.env.FIREBASE_SERVICE_KEY,
+  "base64",
+).toString("utf8");
 const serviceAccount = JSON.parse(decoded);
 
 try {
@@ -19,9 +22,12 @@ const port = process.env.PORT || 5000;
 
 app.use(
   cors({
-    origin: ["http://localhost:5173", "https://learn-english-with-araf.web.app"],
+    origin: [
+      "http://localhost:5173",
+      "https://learn-english-with-araf.web.app",
+    ],
     credentials: true,
-  })
+  }),
 );
 app.use(express.json());
 
@@ -138,8 +144,27 @@ app.post("/lessons", verifyToken, async (req, res) => {
 app.get("/lessons", async (req, res) => {
   try {
     const { lessonsCollection } = await getCollections();
-    const result = await lessonsCollection.find({}).toArray();
-    res.send(result);
+
+    
+    const page = parseInt(req.query.page) || 0;
+    const limit = parseInt(req.query.limit) || 0;
+
+    let cursor = lessonsCollection.find({}).sort({ _id: -1 });
+
+    let result;
+    if (req.query.page !== undefined && req.query.limit !== undefined) {
+      result = await cursor
+        .skip(page * limit)
+        .limit(limit)
+        .toArray();
+    } else {
+      result = await cursor.toArray();
+    }
+
+    
+    const total = await lessonsCollection.estimatedDocumentCount();
+
+    res.send({ total, result });
   } catch (error) {
     res.status(500).send({ error: "Failed to fetch all lessons" });
   }
