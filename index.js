@@ -50,6 +50,7 @@ async function getCollections() {
   };
 }
 
+// ১. বেসিক ফায়ারবেস টোকেন ভেরিফাই মিডলওয়্যার
 const verifyToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -62,6 +63,29 @@ const verifyToken = async (req, res, next) => {
     next();
   } catch (error) {
     return res.status(403).send({ message: "Forbidden access" });
+  }
+};
+
+// ২. শিক্ষক বা অ্যাডমিন ভেরিফাই মিডলওয়্যার (Email বা Database Role চেক করার জন্য)
+const verifyTeacher = async (req, res, next) => {
+  try {
+    const email = req.user?.email;
+
+    // সরাসরি ইমেইল চেক অথবা ডাটাবেজ থেকে রোল চেক করা
+    if (email === "araf357300@gmail.com") {
+      return next(); // যদি তোমার ইমেইল হয় সরাসরি পাস করে দেবে
+    }
+
+    const { usersCollection } = await getCollections();
+    const user = await usersCollection.findOne({ email });
+
+    if (user?.role === "teacher") {
+      return next(); // যদি ডাটাবেজে রোল শিক্ষক হয় তবে পাস করবে
+    }
+
+    return res.status(403).send({ message: "Forbidden: Only teacher can access this action!" });
+  } catch (error) {
+    res.status(500).send({ error: "Internal server error during teacher verification" });
   }
 };
 
@@ -130,7 +154,8 @@ app.patch("/users/progress", verifyToken, async (req, res) => {
   }
 });
 
-app.post("/lessons", verifyToken, async (req, res) => {
+// ৩. লেসন অ্যাড করার রুট (verifyToken এবং verifyTeacher দুটোই দেওয়া হলো)
+app.post("/lessons", verifyToken, verifyTeacher, async (req, res) => {
   try {
     const { lessonsCollection } = await getCollections();
     const lessonData = req.body;
@@ -144,7 +169,6 @@ app.post("/lessons", verifyToken, async (req, res) => {
 app.get("/lessons", async (req, res) => {
   try {
     const { lessonsCollection } = await getCollections();
-
     
     const page = parseInt(req.query.page) || 0;
     const limit = parseInt(req.query.limit) || 0;
@@ -161,7 +185,6 @@ app.get("/lessons", async (req, res) => {
       result = await cursor.toArray();
     }
 
-    
     const total = await lessonsCollection.estimatedDocumentCount();
 
     res.send({ total, result });
@@ -208,7 +231,8 @@ app.get("/lesson/:id", async (req, res) => {
   }
 });
 
-app.put("/lessons/:id", verifyToken, async (req, res) => {
+// ৪. লেসন আপডেট বা এডিট করার রুট
+app.put("/lessons/:id", verifyToken, verifyTeacher, async (req, res) => {
   try {
     const { lessonsCollection } = await getCollections();
     const id = req.params.id;
@@ -234,7 +258,8 @@ app.put("/lessons/:id", verifyToken, async (req, res) => {
   }
 });
 
-app.delete("/lessons/:id", verifyToken, async (req, res) => {
+// ৫. লেসন ডিলিট করার রুট
+app.delete("/lessons/:id", verifyToken, verifyTeacher, async (req, res) => {
   try {
     const { lessonsCollection } = await getCollections();
     const id = req.params.id;
